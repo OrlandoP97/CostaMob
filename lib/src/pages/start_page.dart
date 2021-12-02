@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:costamob/src/models/fieldWorkModel.dart';
 import 'package:costamob/src/models/positionModel.dart';
 import 'package:costamob/src/pages/new_fieldW_page.dart';
+import 'package:costamob/src/pages/view_fieldW_page.dart';
 
 import 'package:costamob/src/widgets/field_work_element.dart';
 import 'package:flutter/material.dart';
@@ -91,6 +92,7 @@ class _StartPageState extends State<StartPage> {
   Future<void> saveFile(String fieldWPath) async {
     Directory directory;
     Directory imgDir;
+    Directory videoDir;
     try {
       if (Platform.isAndroid) {
         if (await Permission.storage.isGranted) {
@@ -101,10 +103,11 @@ class _StartPageState extends State<StartPage> {
           newPath = this.rootpath + "/$fieldWPath";
           directory = Directory(newPath);
           imgDir = Directory("$newPath/images");
-
+          videoDir = Directory("$newPath/video");
           if (!await directory.exists()) {
             await directory.create(recursive: true);
             await imgDir.create(recursive: true);
+            await videoDir.create(recursive: true);
           }
         }
       }
@@ -211,13 +214,13 @@ class _StartPageState extends State<StartPage> {
         ),
       );
 
-      return Future.error('Location services are disabled.');
+    /*   return Future.error('Location services are disabled.'); */
     }
 
     permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
+      if (permission ==  LocationPermission.denied) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text(
@@ -225,14 +228,17 @@ class _StartPageState extends State<StartPage> {
           ),
         );
 
-        return Future.error('Location permissions are denied');
+        /* return Future.error('Location permissions are denied'); */
       }
     }
 
     if (permission == LocationPermission.deniedForever) {
       // Permissions are denied forever, handle appropriately.
-      return Future.error(
-          'Location permissions are permanently denied, we cannot request permissions.');
+     ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+                'Permiso denegado, debe activar el permiso de ubicación'),
+          ));
     }
 
     // When we reach here, permissions are granted and we can
@@ -243,44 +249,48 @@ class _StartPageState extends State<StartPage> {
   @override
   Widget build(BuildContext context) {
     final ubicacion = Provider.of<PositionModel>(context);
-    final lista = Provider.of<FieldWorkModel>((context), listen: false).itemNames;
+    final lista =
+        Provider.of<FieldWorkModel>((context), listen: false).itemNames;
     return Scaffold(
         body: Stack(
           children: [MainScroll(rootpath)],
         ),
-        floatingActionButton: (ubicacion.position.latitude != 0)
-            ? FloatingActionButton(
+        floatingActionButton: 
+             FloatingActionButton(
                 child: Icon(Icons.add),
                 onPressed: () {
                   _showMyDialog().then((value) => {
-
                         print(value),
-                        if (value ==true && nameValidator(this.pathName_controller.text,lista)!){ 
-                        Navigator.of(context)
-                            .push(
-                          MaterialPageRoute(
-                            builder: (_) => FormWidgetsDemo(
-                                "${this.rootpath}/${this.pathName_controller.text}"),
-                          ),
-                        )
-                            .then((value) {
-                          //si llega true se guarda y se actualiza la lista
-                          setState(() {});
+                        if (value == true &&
+                            nameValidator(
+                                this.pathName_controller.text, lista)!)
+                          {
+                            Navigator.of(context)
+                                .push(
+                              MaterialPageRoute(
+                                builder: (_) => FormWidgetsDemo(
+                                    "${this.rootpath}/${this.pathName_controller.text}"),
+                              ),
+                            )
+                                .then((value) {
+                              //si llega true se guarda y se actualiza la lista
+                              setState(() {});
 
-                          if (value != true) {
-                            //si llega false de newFielW significa que se cancela por tanto hay que eliminar
-                            // la carpeta que se habia creado
-                            final dir = Directory(
-                                "${this.rootpath}/${this.pathName_controller.text}");
-                            dir.delete(recursive: true);
+                              if (value != true) {
+                                //si llega false de newFielW significa que se cancela por tanto hay que eliminar
+                                // la carpeta que se habia creado
+                                final dir = Directory(
+                                    "${this.rootpath}/${this.pathName_controller.text}");
+                                dir.delete(recursive: true);
 
-                            setState(() {});
+                                setState(() {});
+                              }
+                              ;
+                            })
                           }
-                          ;
-                        })}
                       });
                 })
-            : null);
+             );
   }
 }
 
@@ -309,7 +319,7 @@ class _MainScrollState extends State<MainScroll> {
     //Leer del fieldwModel y rellenar la lista de items
 
     final _listaFW = Provider.of<FieldWorkModel>((context)).listaFW;
-
+    final _loc = Provider.of<PositionModel>((context)).position;
     Future<void> _deleteElement(int index) async {
       Directory dir =
           new Directory("${widget.rootpath}/${_listaFW[index].title}");
@@ -329,27 +339,61 @@ class _MainScrollState extends State<MainScroll> {
       physics: BouncingScrollPhysics(),
       slivers: <Widget>[
         SliverAppBar(
-          leading: IconButton(icon: Icon(Icons.menu_book), onPressed: () {}),
+         
           elevation: 0,
           floating: true,
           title: Text("CostaMov"),
-          actions: [IconButton(icon: Icon(Icons.gps_fixed), onPressed: () {
-             
-             //TODO probando si al pulsar el boton fuerza la ubicacion
-             Geolocator.getCurrentPosition();
-          })],
+          actions: [
+            Container(
+              color:  (_loc.latitude==0) ? Colors.red :Colors.green,
+              child:  IconButton(
+                icon: Icon(Icons.gps_fixed),
+                onPressed: () {
+                  
+                  //TODO probando si al pulsar el boton fuerza la ubicacion
+                  Geolocator.getCurrentPosition();
+                }),)
+           
+          ],
         ),
         SliverList(
           delegate:
               SliverChildBuilderDelegate((BuildContext context, int index) {
             return InkWell(
-              onLongPress: () {
-                _deleteElement(index).then((value) => print("borrado"));
+              onLongPress: () async {
+                await showDialog<bool>(
+                  context: context,
+                  barrierDismissible: true, // user must tap button!
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      title: Text(
+                          'Está seguro que desea eliminar el trabajo de campo?'),
+                      content: SingleChildScrollView(),
+                      actions: <Widget>[
+                        TextButton(
+                          child: const Text('OK'),
+                          onPressed: () {
+                            _deleteElement(index)
+                                .then((value) => Navigator.of(context).pop());
+                          },
+                        ),
+                        TextButton(
+                          child: const Text('Cancelar'),
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                        ),
+                      ],
+                    );
+                  },
+                );
 
                 print("Long Press");
               },
               onTap: () {
-                print("Tap");
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => View_FieldW(index),
+                ));
               },
               child:
                   FieldWorkElement(_listaFW[index].title, _listaFW[index].date),

@@ -29,13 +29,15 @@ class FieldW {
   String notas = "";
   DateTime date = DateTime.now();
   List<File> images = [];
-  dynamic audio;
+  String audio = "";
   List<Position> positions = [];
+  File video = new File("") ;
 
   FieldW({required this.title, required this.notas}) {
     this.positions = [];
     this.images = [];
     this.date = DateTime.now();
+    this.video = new File("");
   }
 
   editFieldW(title, notas) {
@@ -53,13 +55,16 @@ class FieldW {
     for (var item in positions) {
       aux2.add(item.toJson());
     }
+    
 
     return {
       'title': title,
       'notas': notas,
       'images': aux,
       'positions': aux2,
-      'audio': audio
+      'audio': audio,
+      'video': video.path
+
     };
   }
 
@@ -82,7 +87,8 @@ class FieldW {
     notas = json['notas'];
     images = aux;
     positions = aux2;
-    audio = ['audio'];
+    audio = json['audio'];
+    video = File(json["video"]);
   }
   
 }

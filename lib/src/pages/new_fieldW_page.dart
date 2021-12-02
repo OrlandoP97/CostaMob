@@ -2,9 +2,9 @@ import 'dart:io';
 
 import 'package:costamob/src/models/fieldWorkModel.dart';
 import 'package:costamob/src/models/positionModel.dart';
-import 'package:costamob/src/widgets/insert_coords.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
@@ -39,11 +39,13 @@ class _FormWidgetsDemoState extends State<FormWidgetsDemo> {
   bool _isRecording = false;
 
   ///Objeto golobal de esta pagina
-  FieldW _fieldW = new FieldW(title: "",notas:"");
-  AudioPlayer player=AudioPlayer();
+  FieldW _fieldW = new FieldW(title: "", notas: "");
+  AudioPlayer player = AudioPlayer();
   bool showAudio = false;
   ///////////////////////
-
+  TextEditingController latitud_controller = TextEditingController();
+  TextEditingController longitud_controller = TextEditingController();
+  late PositionModel ubicacion;
   @override
   void initState() {
     player = new AudioPlayer();
@@ -52,6 +54,14 @@ class _FormWidgetsDemoState extends State<FormWidgetsDemo> {
     final lista = widget.fieldWpathName.split("/");
     this._fieldW.title = lista[5];
     print(_fieldW.title);
+
+///////////
+    this.ubicacion = Provider.of<PositionModel>(context, listen: false);
+    /////////////
+    latitud_controller =
+        TextEditingController(text: ubicacion.position.latitude.toString());
+    longitud_controller =
+        TextEditingController(text: ubicacion.position.longitude.toString());
     super.initState();
   }
 
@@ -98,7 +108,7 @@ class _FormWidgetsDemoState extends State<FormWidgetsDemo> {
     });
   }
 
-   grabar() async {
+  grabar() async {
     PermissionStatus status = await Permission.microphone.request();
     if (status.isGranted) {
       await RecordPlatform.instance.start(
@@ -112,9 +122,9 @@ class _FormWidgetsDemoState extends State<FormWidgetsDemo> {
       });
     } else
       print(status);
-  } 
- 
-   stopRecording() async {
+  }
+
+  stopRecording() async {
     bool isRecording = await RecordPlatform.instance.isRecording();
 
     if (isRecording) {
@@ -126,12 +136,13 @@ class _FormWidgetsDemoState extends State<FormWidgetsDemo> {
         _fieldW.audio = "${widget.fieldWpathName}/audio.m4a";
       });
     }
-  } 
+  }
 
   pickImage() async {
-     try {
+    try {
       final _picker = ImagePicker();
-      final picked = await _picker.pickImage(source: ImageSource.camera);
+      final picked =
+          await _picker.pickImage(source: ImageSource.camera, imageQuality: 5);
       final File pickedFile = File(picked!.path);
 
       File newImage = await pickedFile
@@ -147,10 +158,27 @@ class _FormWidgetsDemoState extends State<FormWidgetsDemo> {
       print(e);
     }
   }
- 
+
+  pickVideo() async {
+    try {
+      final _picker = ImagePicker();
+      final picked = await _picker.pickVideo(source: ImageSource.camera);
+      final File pickedFile = File(picked!.path);
+
+      File newImage =
+          await pickedFile.copy('${widget.fieldWpathName}/video/video.mp4');
+
+      setState(() {
+        if (picked != null) {
+          _fieldW.video = newImage;
+        }
+      });
+    } catch (e) {
+      print(e);
+    }
+  }
+
   Future<void> _showMyDialog() async {
-    final ubicacion =
-        Provider.of<PositionModel>(context, listen: false).position;
     return showDialog<void>(
       context: context,
       barrierDismissible: false, // user must tap button!
@@ -159,7 +187,39 @@ class _FormWidgetsDemoState extends State<FormWidgetsDemo> {
           title: Text('Añadir punto'),
           content: SingleChildScrollView(
             child: ListBody(
-              children: <Widget>[InsertCoords()],
+              children: <Widget>[
+                TextFormField(
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(
+                        RegExp(r'(^(-)?\d*\.?\d*)'))
+                  ],
+                  controller: this.latitud_controller,
+
+                  decoration: InputDecoration(
+                    filled: true,
+                    labelText: 'Latitud',
+                  ),
+                  // initialValue: ubicacion.position.latitude.toString(),
+                ),
+                SizedBox(
+                  height: 5,
+                ),
+                TextFormField(
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(
+                        RegExp(r'(^(-)?\d*\.?\d*)'))
+                  ],
+                  controller: this.longitud_controller,
+
+                  decoration: InputDecoration(
+                    filled: true,
+                    labelText: 'Longitud',
+                  ),
+                  // initialValue:  ubicacion.position.longitude.toString(),
+                ),
+              ],
             ),
           ),
           actions: <Widget>[
@@ -167,8 +227,25 @@ class _FormWidgetsDemoState extends State<FormWidgetsDemo> {
               child: const Text('OK'),
               onPressed: () {
                 print(ubicacion);
+                double _lat = 0;
+                double _lon = 0;
+                if(latitud_controller.text != "" && longitud_controller.text != ""){
+                _lat = double.parse(latitud_controller.text);
+                _lon = double.parse(longitud_controller.text);
+                }
+               
+                Position pos = new Position(
+                    accuracy: 10,
+                    altitude: 0,
+                    latitude: _lat,
+                    longitude: _lon,
+                    speed: 0,
+                    timestamp: DateTime.now(),
+                    heading: 0,
+                    speedAccuracy: 10);
+
                 setState(() {
-                  _fieldW.positions.add(ubicacion);
+                  _fieldW.positions.add(pos);
                 });
 
                 Navigator.of(context).pop();
@@ -272,29 +349,26 @@ class _FormWidgetsDemoState extends State<FormWidgetsDemo> {
                                 })
                           ],
                         ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Icon(
+                              Icons.check,
+                              color: Colors.green,
+                            ),
+                            IconButton(
+                                icon: Icon(
+                                  Icons.video_camera_back,
+                                ),
+                                onPressed: () {
+                                  pickVideo();
+                                })
+                          ],
+                        ),
                         Container(
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              (!_isRecording)
-                                  ? IconButton(
-                                      onPressed: () {
-                                        grabar();
-                                      },
-                                      icon: Icon(Icons.mic_outlined),
-                                      color: Colors.green,
-                                    )
-                                  : ElevatedButton.icon(
-                                      onPressed: () {
-                                       stopRecording();
-                                      },
-                                      icon: Icon(Icons.stop),
-                                      label: Text("Stop"),
-                                      style: ButtonStyle(
-                                          backgroundColor:
-                                              MaterialStateProperty.all(
-                                                  Colors.red)),
-                                    ),
                               Container(
                                 child: (showAudio)
                                     ? IconButton(
@@ -309,6 +383,25 @@ class _FormWidgetsDemoState extends State<FormWidgetsDemo> {
                                       )
                                     : SizedBox(),
                               ),
+                              (!_isRecording)
+                                  ? IconButton(
+                                      onPressed: () {
+                                        grabar();
+                                      },
+                                      icon: Icon(Icons.mic_outlined),
+                                      color: Colors.green,
+                                    )
+                                  : ElevatedButton.icon(
+                                      onPressed: () {
+                                        stopRecording();
+                                      },
+                                      icon: Icon(Icons.stop),
+                                      label: Text("Stop"),
+                                      style: ButtonStyle(
+                                          backgroundColor:
+                                              MaterialStateProperty.all(
+                                                  Colors.red)),
+                                    ),
                             ],
                           ),
                         ),
@@ -322,29 +415,28 @@ class _FormWidgetsDemoState extends State<FormWidgetsDemo> {
                                 icon: Icon(
                                   Icons.cancel,
                                 ),
-                                 style: ButtonStyle(
-                                  backgroundColor: MaterialStateProperty.all(Color(0xffC70039).withOpacity(0.7))
-                                ),
+                                style: ButtonStyle(
+                                    backgroundColor: MaterialStateProperty.all(
+                                        Color(0xffC70039).withOpacity(0.7))),
                                 onPressed: () {
                                   // Retorna falso, no se actualiza la lista de trabajos de campo y se elimnia el directorio que se habia creado
                                   Navigator.of(context).pop(false);
                                 },
                               ),
-                               ElevatedButton.icon(
+                              ElevatedButton.icon(
                                 label: Text("Guardar"),
                                 icon: Icon(
                                   Icons.save,
                                 ),
                                 style: ButtonStyle(
-                                  backgroundColor: MaterialStateProperty.all(Color(0xff5A8745))
-                                ),
+                                    backgroundColor: MaterialStateProperty.all(
+                                        Color(0xff5A8745))),
                                 onPressed: () {
                                   updateList();
                                   savetoGPX();
                                   Navigator.of(context).pop(true);
                                 },
                               ),
-                              
                             ],
                           ),
                         ),
